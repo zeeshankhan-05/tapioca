@@ -146,27 +146,78 @@ This is a minimal Sorbet-level reproduction of the superclass redefinition behav
 
 ### Analysis
 
-Not started yet. This will be completed after reproducing the issue in Phase II.
+Sorbet reports payload superclass redefinition as error `5012`. In my minimal reproduction, the error output included the exact constant (`Net::IMAP::Literal`) and Sorbet’s suggested suppression flag (`--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal`).
+
+Tapioca already validates generated RBI files in `Tapioca::Helpers::RBIFilesHelper#validate_rbi_files`. That method:
+
+* runs Sorbet with `--no-config`, `--error-url-base=...`, and `--stop-after namer` against the DSL and gem RBI directories
+* parses Sorbet output with `Spoom::Sorbet::Errors::Parser.parse_string`
+* handles parse errors (`code < 4000`) by raising `Tapioca::Error`
+* handles other validation conflicts through `auto_strictness`, which currently filters error `4010` and calls `update_gem_rbis_strictnesses` to change conflicting gem RBI files to `typed: false`
+
+Tapioca does not currently appear to automatically convert payload superclass redefinition errors into `sorbet/config` suppression entries. The repo already contains manual suppressions in `sorbet/config` for `Net::IMAP::CommandData` and `Net::IMAP::Literal`, which suggests maintainers have handled this case manually before.
+
+Important caveat from reproduction: the confirmed reproduction was Sorbet-level, not through the current Tapioca CLI validation path. With the current helper command shape (`--stop-after namer`), the temporary payload conflict did not surface. That means the implementation likely needs either:
+
+* an adjustment to the validation command so payload superclass errors are detected, or
+* targeted test coverage that exercises the full Sorbet validation behavior needed for error `5012`
 
 ### Proposed Solution
 
-Based on the issue description, the likely solution will involve detecting superclass redefinition errors during RBI validation and adding the correct `--suppress-payload-superclass-redefinition-for=ConstantName` entry to `sorbet/config`, while still showing a warning or message to the user.
+Extend `validate_rbi_files` so that when Sorbet reports error `5012`, Tapioca extracts the constant name, appends the matching `--suppress-payload-superclass-redefinition-for=ConstantName` line to `sorbet/config` if it is not already present, and prints a clear user-facing warning about the superclass mismatch and the suppression that was added.
 
 ### Implementation Plan
 
 Using UMPIRE framework:
 
-**Understand:** Tapioca should handle Sorbet superclass redefinition errors more automatically during generated RBI validation.
+**Understand:** When Tapioca validates generated gem RBIs, some generated definitions can redefine a Sorbet payload class with a different superclass. Sorbet reports this as error `5012` and recommends a suppression flag. Tapioca should add that suppression to `sorbet/config` automatically, but still tell the user what happened instead of silently hiding the mismatch.
 
-**Match:** I will look for existing patterns in the codebase around RBI validation, automatic strictness changes, user warnings, and config file updates.
+**Match:** Closest existing patterns in the codebase:
 
-**Plan:** Not started yet. This will be completed in Phase II after reproducing the issue and reading the relevant code.
+* **Sorbet error parsing:** `validate_rbi_files` already parses Sorbet stderr with `Spoom::Sorbet::Errors::Parser` and branches on `error.code`
+* **Automatic remediation for validation conflicts:** `auto_strictness` already handles error `4010` by calling `update_gem_rbis_strictnesses`
+* **User-facing output style:** `update_gem_rbis_strictnesses` uses `say(..., [:yellow, :bold])`; other commands use `say_error(..., :yellow)` for warnings
+* **Config file reading:** `Spoom::Sorbet::Config.parse_file` is already used in `lib/tapioca/static/requires_compiler.rb`
+* **Config file creation:** `lib/tapioca/commands/configure.rb` creates `sorbet/config`, but there is no existing helper for appending suppression flags during validation
+* **Existing tests:** strictness behavior is covered in `spec/tapioca/cli/gem_spec.rb` and `spec/tapioca/cli/dsl_spec.rb` through CLI integration tests
 
-**Implement:** Not started yet.
+**Plan:**
 
-**Review:** Not started yet.
+1. Inspect how `Spoom::Sorbet::Errors::Error` represents error `5012`, including whether the constant name can be parsed from `message` or `more` lines containing `--suppress-payload-superclass-redefinition-for=...`.
+2. Add handling in `validate_rbi_files` for Sorbet error `5012` alongside the existing `4010` auto-strictness path.
+3. Extract the constant name from Sorbet’s suggested suppression flag or error output.
+4. Add helper logic to update `sorbet/config` with:
+   `--suppress-payload-superclass-redefinition-for=ConstantName`
+5. Avoid duplicate suppression entries if `sorbet/config` already contains the line.
+6. Print a clear user-facing warning explaining:
+   * which constant had a payload superclass mismatch
+   * what suppression line was added
+   * that the user should review the generated RBI and config change
+7. Decide whether the current validation command needs adjustment so error `5012` is actually detected during Tapioca validation, since `--stop-after namer` did not surface the reproduced payload conflict.
+8. Add or update tests covering:
+   * detection of error `5012`
+   * writing the suppression line to `sorbet/config`
+   * not duplicating an existing suppression line
+   * user still gets informed through stdout/warning output
+   * existing `4010` auto-strictness behavior still works
 
-**Evaluate:** Not started yet.
+**Implement:** https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834
+
+**Review:** Before opening a PR, check:
+
+* `bin/style`
+* `bin/typecheck`
+* relevant tests with `bin/test`
+* only intended files changed
+* no unrelated `Gemfile.lock` setup change is included
+
+**Evaluate:** I will verify the fix by:
+
+* reproducing the Sorbet-level failure from Phase II Step 3 before making changes
+* running the same scenario after the fix through Tapioca’s validation path or targeted tests
+* confirming `sorbet/config` receives the expected suppression line
+* confirming the user-facing warning/message appears
+* running targeted tests and available project checks (`bin/test`, `bin/typecheck`, `bin/style`)
 
 ---
 
@@ -174,15 +225,21 @@ Using UMPIRE framework:
 
 ### Unit Tests
 
-* [ ] Not started yet.
+* [ ] Add helper-level coverage for parsing error `5012` and extracting the constant name from Sorbet output.
+* [ ] Add helper-level coverage for appending `--suppress-payload-superclass-redefinition-for=ConstantName` to `sorbet/config`.
+* [ ] Add helper-level coverage to ensure duplicate suppression lines are not added when the config already contains the constant.
 
 ### Integration Tests
 
-* [ ] Not started yet.
+* [ ] Add CLI/integration coverage in `spec/tapioca/cli/gem_spec.rb` and/or `spec/tapioca/cli/dsl_spec.rb` for the new suppression behavior.
+* [ ] Verify the user still receives a warning/message when Tapioca adds a suppression entry.
+* [ ] Verify existing `4010` auto-strictness behavior still works and is not broken by the new logic.
 
 ### Manual Testing
 
-Not started yet.
+* [ ] Re-run the minimal Sorbet-level reproduction from `/tmp/tapioca-1834-repro` to confirm the underlying error still reproduces before the fix.
+* [ ] After implementation, run the Tapioca validation path or targeted tests and confirm `sorbet/config` is updated as expected.
+* [ ] Confirm the warning output explains the superclass mismatch and the added suppression line.
 
 ---
 

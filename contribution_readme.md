@@ -2,8 +2,8 @@
 
 **Contribution Number:** 1
 **Student:** Zeeshan Khan
-**Issue:** https://github.com/Shopify/tapioca/issues/1834
-**Status:** Phase II In Progress
+**Issue:** [https://github.com/Shopify/tapioca/issues/1834](https://github.com/Shopify/tapioca/issues/1834)
+**Status:** Phase II Complete
 
 ---
 
@@ -37,13 +37,13 @@ Tapioca already validates generated RBI files and has logic related to changing 
 
 The main area likely involved is:
 
-* `Tapioca::Helpers::RbiFilesHelper#validate_rbi_files`
+- `Tapioca::Helpers::RbiFilesHelper#validate_rbi_files`
 
 Other possible areas may include:
 
-* Sorbet config handling
-* RBI validation logic
-* Tests related to generated RBI validation or strictness changes
+- Sorbet config handling
+- RBI validation logic
+- Tests related to generated RBI validation or strictness changes
 
 ---
 
@@ -55,74 +55,63 @@ Completed on June 7, 2026.
 
 **Local environment:**
 
-* **OS:** macOS arm64, darwin 25.5.0
-* **Local repo path:** `~/Projects/tapioca`
-* **Fork URL:** https://github.com/zeeshankhan-05/tapioca
-* **Upstream URL:** https://github.com/Shopify/tapioca
-* **Ruby:** 4.0.2 through rbenv
-* **Bundler:** 4.0.10
-* **Homebrew:** 5.1.15
+- **OS:** macOS arm64, darwin 25.5.0
+- **Local repo path:** `~/Projects/tapioca`
+- **Fork URL:** [https://github.com/zeeshankhan-05/tapioca](https://github.com/zeeshankhan-05/tapioca)
+- **Upstream URL:** [https://github.com/Shopify/tapioca](https://github.com/Shopify/tapioca)
+- **Ruby:** 4.0.2 through rbenv
+- **Bundler:** 4.0.10
+- **Homebrew:** 5.1.15
 
 **Setup verification:**
 
-* Dependencies installed successfully with `bundle install`.
-* Smoke test passed with `bundle exec exe/tapioca help`.
-* Targeted test passed with `bin/test spec/tapioca/cli/help_spec.rb`.
-* Targeted test result: 3 tests, 12 assertions, 0 failures.
-* Full test suite was not completed yet.
-* No setup errors occurred.
+- Dependencies installed successfully with `bundle install`.
+- Smoke test passed with `bundle exec exe/tapioca help`.
+- Targeted test passed with `bin/test spec/tapioca/cli/help_spec.rb`.
+- Targeted test result: 3 tests, 12 assertions, 0 failures.
+- Full test suite was not completed yet.
+- No setup errors occurred.
 
 **Repository setup notes:**
 
-* No `CONTRIBUTING.md` file was found in the repo.
-* Setup references are `README.md` and `dev.yml`.
-* `dev.yml` includes `bin/test`, `bin/typecheck`, and `bin/style`.
+- No `CONTRIBUTING.md` file was found in the repo.
+- Setup references are `README.md` and `dev.yml`.
+- `dev.yml` includes `bin/test`, `bin/typecheck`, and `bin/style`.
 
 ### Steps to Reproduce
 
 This is a minimal Sorbet-level reproduction of the superclass redefinition behavior that issue #1834 asks Tapioca to handle.
 
 1. From the Tapioca repo, create a temporary repro directory outside the repo:
-
-   ```bash
+  ```bash
    rm -rf /tmp/tapioca-1834-repro
    mkdir -p /tmp/tapioca-1834-repro/gem_rbis /tmp/tapioca-1834-repro/dsl_rbis
-   ```
-
+  ```
 2. Create `/tmp/tapioca-1834-repro/gem_rbis/net_imap_literal.rbi`:
-
-   ```rbi
+  ```rbi
    # typed: true
 
    class Net::IMAP::Literal < String
    end
-   ```
-
+  ```
 3. Run Sorbet against the temporary RBI directories:
-
-   ```bash
+  ```bash
    bundle exec srb tc --no-config --error-url-base=https://srb.help/ /tmp/tapioca-1834-repro/dsl_rbis /tmp/tapioca-1834-repro/gem_rbis
-   ```
-
+  ```
 4. Confirm that Sorbet reports a payload superclass redefinition error for `Net::IMAP::Literal`.
-
 5. Confirm the suppression flag works:
-
-   ```bash
+  ```bash
    bundle exec srb tc --no-config --error-url-base=https://srb.help/ --suppress-payload-superclass-redefinition-for=Net::IMAP::Literal /tmp/tapioca-1834-repro/dsl_rbis /tmp/tapioca-1834-repro/gem_rbis
-   ```
+  ```
 
 ### Reproduction Evidence
 
-* **Working branch:** https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834
-* **Reproduction command:**
-
+- **Working branch:** [https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834](https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834)
+- **Reproduction command:**
   ```bash
   bundle exec srb tc --no-config --error-url-base=https://srb.help/ /tmp/tapioca-1834-repro/dsl_rbis /tmp/tapioca-1834-repro/gem_rbis
   ```
-
-* **Observed error excerpt:**
-
+- **Observed error excerpt:**
   ```text
   /tmp/tapioca-1834-repro/gem_rbis/net_imap_literal.rbi:3: Parent of class `Net::IMAP::Literal` redefined from `Net::IMAP::CommandData` to `String` https://srb.help/5012
        3 |class Net::IMAP::Literal < String
@@ -134,11 +123,10 @@ This is a minimal Sorbet-level reproduction of the superclass redefinition behav
       Pass `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` at the command line or in the `sorbet/config` file to silence this error.
   Errors: 1
   ```
-
-* **Suppression verification:** Running the same command with `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` returned `No errors! Great job.`
-* **Tapioca validation-path note:** The current `validate_rbi_files` command shape uses `--stop-after namer`; with that flag, this temporary payload conflict did not surface and Sorbet returned `No errors! Great job.`
-* **Tapioca CLI note:** A controlled `tapioca gem net-imap` run using `/tmp` output completed successfully and changed the generated RBI strictness to `typed: false`; it did not reproduce the payload suppression behavior directly through the CLI.
-* **My findings:** The underlying Sorbet behavior is confirmed. The error code is `5012`, the constant is `Net::IMAP::Literal`, and Sorbet explicitly recommends adding `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` to suppress this class of payload superclass mismatch.
+- **Suppression verification:** Running the same command with `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` returned `No errors! Great job.`
+- **Tapioca validation-path note:** The current `validate_rbi_files` command shape uses `--stop-after namer`; with that flag, this temporary payload conflict did not surface and Sorbet returned `No errors! Great job.`
+- **Tapioca CLI note:** A controlled `tapioca gem net-imap` run using `/tmp` output completed successfully and changed the generated RBI strictness to `typed: false`; it did not reproduce the payload suppression behavior directly through the CLI.
+- **My findings:** The underlying Sorbet behavior is confirmed. The error code is `5012`, the constant is `Net::IMAP::Literal`, and Sorbet explicitly recommends adding `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` to suppress this class of payload superclass mismatch.
 
 ---
 
@@ -150,17 +138,17 @@ Sorbet reports payload superclass redefinition as error `5012`. In my minimal re
 
 Tapioca already validates generated RBI files in `Tapioca::Helpers::RBIFilesHelper#validate_rbi_files`. That method:
 
-* runs Sorbet with `--no-config`, `--error-url-base=...`, and `--stop-after namer` against the DSL and gem RBI directories
-* parses Sorbet output with `Spoom::Sorbet::Errors::Parser.parse_string`
-* handles parse errors (`code < 4000`) by raising `Tapioca::Error`
-* handles other validation conflicts through `auto_strictness`, which currently filters error `4010` and calls `update_gem_rbis_strictnesses` to change conflicting gem RBI files to `typed: false`
+- runs Sorbet with `--no-config`, `--error-url-base=...`, and `--stop-after namer` against the DSL and gem RBI directories
+- parses Sorbet output with `Spoom::Sorbet::Errors::Parser.parse_string`
+- handles parse errors (`code < 4000`) by raising `Tapioca::Error`
+- handles other validation conflicts through `auto_strictness`, which currently filters error `4010` and calls `update_gem_rbis_strictnesses` to change conflicting gem RBI files to `typed: false`
 
 Tapioca does not currently appear to automatically convert payload superclass redefinition errors into `sorbet/config` suppression entries. The repo already contains manual suppressions in `sorbet/config` for `Net::IMAP::CommandData` and `Net::IMAP::Literal`, which suggests maintainers have handled this case manually before.
 
 Important caveat from reproduction: the confirmed reproduction was Sorbet-level, not through the current Tapioca CLI validation path. With the current helper command shape (`--stop-after namer`), the temporary payload conflict did not surface. That means the implementation likely needs either:
 
-* an adjustment to the validation command so payload superclass errors are detected, or
-* targeted test coverage that exercises the full Sorbet validation behavior needed for error `5012`
+- an adjustment to the validation command so payload superclass errors are detected, or
+- targeted test coverage that exercises the full Sorbet validation behavior needed for error `5012`
 
 ### Proposed Solution
 
@@ -174,12 +162,12 @@ Using UMPIRE framework:
 
 **Match:** Closest existing patterns in the codebase:
 
-* **Sorbet error parsing:** `validate_rbi_files` already parses Sorbet stderr with `Spoom::Sorbet::Errors::Parser` and branches on `error.code`
-* **Automatic remediation for validation conflicts:** `auto_strictness` already handles error `4010` by calling `update_gem_rbis_strictnesses`
-* **User-facing output style:** `update_gem_rbis_strictnesses` uses `say(..., [:yellow, :bold])`; other commands use `say_error(..., :yellow)` for warnings
-* **Config file reading:** `Spoom::Sorbet::Config.parse_file` is already used in `lib/tapioca/static/requires_compiler.rb`
-* **Config file creation:** `lib/tapioca/commands/configure.rb` creates `sorbet/config`, but there is no existing helper for appending suppression flags during validation
-* **Existing tests:** strictness behavior is covered in `spec/tapioca/cli/gem_spec.rb` and `spec/tapioca/cli/dsl_spec.rb` through CLI integration tests
+- **Sorbet error parsing:** `validate_rbi_files` already parses Sorbet stderr with `Spoom::Sorbet::Errors::Parser` and branches on `error.code`
+- **Automatic remediation for validation conflicts:** `auto_strictness` already handles error `4010` by calling `update_gem_rbis_strictnesses`
+- **User-facing output style:** `update_gem_rbis_strictnesses` uses `say(..., [:yellow, :bold])`; other commands use `say_error(..., :yellow)` for warnings
+- **Config file reading:** `Spoom::Sorbet::Config.parse_file` is already used in `lib/tapioca/static/requires_compiler.rb`
+- **Config file creation:** `lib/tapioca/commands/configure.rb` creates `sorbet/config`, but there is no existing helper for appending suppression flags during validation
+- **Existing tests:** strictness behavior is covered in `spec/tapioca/cli/gem_spec.rb` and `spec/tapioca/cli/dsl_spec.rb` through CLI integration tests
 
 **Plan:**
 
@@ -187,37 +175,37 @@ Using UMPIRE framework:
 2. Add handling in `validate_rbi_files` for Sorbet error `5012` alongside the existing `4010` auto-strictness path.
 3. Extract the constant name from Sorbet’s suggested suppression flag or error output.
 4. Add helper logic to update `sorbet/config` with:
-   `--suppress-payload-superclass-redefinition-for=ConstantName`
+  `--suppress-payload-superclass-redefinition-for=ConstantName`
 5. Avoid duplicate suppression entries if `sorbet/config` already contains the line.
 6. Print a clear user-facing warning explaining:
-   * which constant had a payload superclass mismatch
-   * what suppression line was added
-   * that the user should review the generated RBI and config change
+  - which constant had a payload superclass mismatch
+  - what suppression line was added
+  - that the user should review the generated RBI and config change
 7. Decide whether the current validation command needs adjustment so error `5012` is actually detected during Tapioca validation, since `--stop-after namer` did not surface the reproduced payload conflict.
 8. Add or update tests covering:
-   * detection of error `5012`
-   * writing the suppression line to `sorbet/config`
-   * not duplicating an existing suppression line
-   * user still gets informed through stdout/warning output
-   * existing `4010` auto-strictness behavior still works
+  - detection of error `5012`
+  - writing the suppression line to `sorbet/config`
+  - not duplicating an existing suppression line
+  - user still gets informed through stdout/warning output
+  - existing `4010` auto-strictness behavior still works
 
-**Implement:** https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834
+**Implement:** [https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834](https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834)
 
 **Review:** Before opening a PR, check:
 
-* `bin/style`
-* `bin/typecheck`
-* relevant tests with `bin/test`
-* only intended files changed
-* no unrelated `Gemfile.lock` setup change is included
+- `bin/style`
+- `bin/typecheck`
+- relevant tests with `bin/test`
+- only intended files changed
+- no unrelated `Gemfile.lock` setup change is included
 
 **Evaluate:** I will verify the fix by:
 
-* reproducing the Sorbet-level failure from Phase II Step 3 before making changes
-* running the same scenario after the fix through Tapioca’s validation path or targeted tests
-* confirming `sorbet/config` receives the expected suppression line
-* confirming the user-facing warning/message appears
-* running targeted tests and available project checks (`bin/test`, `bin/typecheck`, `bin/style`)
+- reproducing the Sorbet-level failure from Phase II Step 3 before making changes
+- running the same scenario after the fix through Tapioca’s validation path or targeted tests
+- confirming `sorbet/config` receives the expected suppression line
+- confirming the user-facing warning/message appears
+- running targeted tests and available project checks (`bin/test`, `bin/typecheck`, `bin/style`)
 
 ---
 
@@ -225,21 +213,21 @@ Using UMPIRE framework:
 
 ### Unit Tests
 
-* [ ] Add helper-level coverage for parsing error `5012` and extracting the constant name from Sorbet output.
-* [ ] Add helper-level coverage for appending `--suppress-payload-superclass-redefinition-for=ConstantName` to `sorbet/config`.
-* [ ] Add helper-level coverage to ensure duplicate suppression lines are not added when the config already contains the constant.
+- [ ] Add helper-level coverage for parsing error `5012` and extracting the constant name from Sorbet output.
+- [ ] Add helper-level coverage for appending `--suppress-payload-superclass-redefinition-for=ConstantName` to `sorbet/config`.
+- [ ] Add helper-level coverage to ensure duplicate suppression lines are not added when the config already contains the constant.
 
 ### Integration Tests
 
-* [ ] Add CLI/integration coverage in `spec/tapioca/cli/gem_spec.rb` and/or `spec/tapioca/cli/dsl_spec.rb` for the new suppression behavior.
-* [ ] Verify the user still receives a warning/message when Tapioca adds a suppression entry.
-* [ ] Verify existing `4010` auto-strictness behavior still works and is not broken by the new logic.
+- [ ] Add CLI/integration coverage in `spec/tapioca/cli/gem_spec.rb` and/or `spec/tapioca/cli/dsl_spec.rb` for the new suppression behavior.
+- [ ] Verify the user still receives a warning/message when Tapioca adds a suppression entry.
+- [ ] Verify existing `4010` auto-strictness behavior still works and is not broken by the new logic.
 
 ### Manual Testing
 
-* [ ] Re-run the minimal Sorbet-level reproduction from `/tmp/tapioca-1834-repro` to confirm the underlying error still reproduces before the fix.
-* [ ] After implementation, run the Tapioca validation path or targeted tests and confirm `sorbet/config` is updated as expected.
-* [ ] Confirm the warning output explains the superclass mismatch and the added suppression line.
+- [ ] Re-run the minimal Sorbet-level reproduction from `/tmp/tapioca-1834-repro` to confirm the underlying error still reproduces before the fix.
+- [ ] After implementation, run the Tapioca validation path or targeted tests and confirm `sorbet/config` is updated as expected.
+- [ ] Confirm the warning output explains the superclass mismatch and the added suppression line.
 
 ---
 
@@ -249,11 +237,15 @@ Using UMPIRE framework:
 
 Selected Shopify/tapioca issue #1834 for my CodePath AI301 Open Source Capstone. I commented on the GitHub issue expressing interest, claimed the issue on the CodePath Google Sheet, and started documenting my understanding in this Contribution README.
 
+### Week 2 Progress
+
+Completed Phase II by setting up the local environment, creating the working branch, reproducing the superclass redefinition behavior at the Sorbet level, and writing a UMPIRE-based solution plan.
+
 ### Code Changes
 
-* **Files modified:** Not started yet.
-* **Key commits:** Not started yet.
-* **Approach decisions:** Not started yet.
+- **Files modified:** Not started yet.
+- **Key commits:** Not started yet.
+- **Approach decisions:** Not started yet.
 
 ---
 
@@ -265,7 +257,7 @@ Selected Shopify/tapioca issue #1834 for my CodePath AI301 Open Source Capstone.
 
 **Maintainer Feedback:**
 
-* No maintainer feedback received yet.
+- No maintainer feedback received yet.
 
 **Status:** Not started yet.
 
@@ -289,7 +281,8 @@ Not started yet.
 
 ## Resources Used
 
-* Shopify/tapioca issue #1834: https://github.com/Shopify/tapioca/issues/1834
-* Shopify/tapioca repository: https://github.com/Shopify/tapioca
-* CodePath AI301 Phase I instructions
-* First Contributions tutorial
+- Shopify/tapioca issue #1834: [https://github.com/Shopify/tapioca/issues/1834](https://github.com/Shopify/tapioca/issues/1834)
+- Shopify/tapioca repository: [https://github.com/Shopify/tapioca](https://github.com/Shopify/tapioca)
+- CodePath AI301 Phase I instructions
+- First Contributions tutorial
+

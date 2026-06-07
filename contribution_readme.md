@@ -80,14 +80,65 @@ Completed on June 7, 2026.
 
 ### Steps to Reproduce
 
-Not started yet. This will be completed next in Phase II Step 3 now that the local development environment is working.
+This is a minimal Sorbet-level reproduction of the superclass redefinition behavior that issue #1834 asks Tapioca to handle.
+
+1. From the Tapioca repo, create a temporary repro directory outside the repo:
+
+   ```bash
+   rm -rf /tmp/tapioca-1834-repro
+   mkdir -p /tmp/tapioca-1834-repro/gem_rbis /tmp/tapioca-1834-repro/dsl_rbis
+   ```
+
+2. Create `/tmp/tapioca-1834-repro/gem_rbis/net_imap_literal.rbi`:
+
+   ```rbi
+   # typed: true
+
+   class Net::IMAP::Literal < String
+   end
+   ```
+
+3. Run Sorbet against the temporary RBI directories:
+
+   ```bash
+   bundle exec srb tc --no-config --error-url-base=https://srb.help/ /tmp/tapioca-1834-repro/dsl_rbis /tmp/tapioca-1834-repro/gem_rbis
+   ```
+
+4. Confirm that Sorbet reports a payload superclass redefinition error for `Net::IMAP::Literal`.
+
+5. Confirm the suppression flag works:
+
+   ```bash
+   bundle exec srb tc --no-config --error-url-base=https://srb.help/ --suppress-payload-superclass-redefinition-for=Net::IMAP::Literal /tmp/tapioca-1834-repro/dsl_rbis /tmp/tapioca-1834-repro/gem_rbis
+   ```
 
 ### Reproduction Evidence
 
 * **Working branch:** https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834
-* **Commit showing reproduction:** Not started yet.
-* **Screenshots/logs:** Not started yet.
-* **My findings:** Not started yet.
+* **Reproduction command:**
+
+  ```bash
+  bundle exec srb tc --no-config --error-url-base=https://srb.help/ /tmp/tapioca-1834-repro/dsl_rbis /tmp/tapioca-1834-repro/gem_rbis
+  ```
+
+* **Observed error excerpt:**
+
+  ```text
+  /tmp/tapioca-1834-repro/gem_rbis/net_imap_literal.rbi:3: Parent of class `Net::IMAP::Literal` redefined from `Net::IMAP::CommandData` to `String` https://srb.help/5012
+       3 |class Net::IMAP::Literal < String
+                                     ^^^^^^
+      https://github.com/sorbet/sorbet/tree/bd88920e92609a8965bf8ccce34b5b61d20ff271/rbi/stdlib/net.rbi#L5040: Originally defined here
+      5040 |class Net::IMAP::Literal < Net::IMAP::CommandData
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    Note:
+      Pass `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` at the command line or in the `sorbet/config` file to silence this error.
+  Errors: 1
+  ```
+
+* **Suppression verification:** Running the same command with `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` returned `No errors! Great job.`
+* **Tapioca validation-path note:** The current `validate_rbi_files` command shape uses `--stop-after namer`; with that flag, this temporary payload conflict did not surface and Sorbet returned `No errors! Great job.`
+* **Tapioca CLI note:** A controlled `tapioca gem net-imap` run using `/tmp` output completed successfully and changed the generated RBI strictness to `typed: false`; it did not reproduce the payload suppression behavior directly through the CLI.
+* **My findings:** The underlying Sorbet behavior is confirmed. The error code is `5012`, the constant is `Net::IMAP::Literal`, and Sorbet explicitly recommends adding `--suppress-payload-superclass-redefinition-for=Net::IMAP::Literal` to suppress this class of payload superclass mismatch.
 
 ---
 

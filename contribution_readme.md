@@ -3,7 +3,7 @@
 **Contribution Number:** 1
 **Student:** Zeeshan Khan
 **Issue:** https://github.com/Shopify/tapioca/issues/1834
-**Status:** Phase I Complete
+**Status:** Phase II In Progress
 
 ---
 
@@ -51,14 +51,40 @@ Other possible areas may include:
 
 ### Environment Setup
 
-Not started yet. This will be completed in Phase II.
+Completed on June 7, 2026.
+
+**Local environment:**
+
+* **OS:** macOS arm64, darwin 25.5.0
+* **Local repo path:** `~/Projects/tapioca`
+* **Fork URL:** https://github.com/zeeshankhan-05/tapioca
+* **Upstream URL:** https://github.com/Shopify/tapioca
+* **Ruby:** 4.0.2 through rbenv
+* **Bundler:** 4.0.10
+* **Homebrew:** 5.1.15
+
+**Setup verification:**
+
+* Dependencies installed successfully with `bundle install`.
+* Smoke test passed with `bundle exec exe/tapioca help`.
+* Targeted test passed with `bin/test spec/tapioca/cli/help_spec.rb`.
+* Targeted test result: 3 tests, 12 assertions, 0 failures.
+* Full test suite was not completed yet.
+* No setup errors occurred.
+
+**Repository setup notes:**
+
+* No `CONTRIBUTING.md` file was found in the repo.
+* Setup references are `README.md` and `dev.yml`.
+* `dev.yml` includes `bin/test`, `bin/typecheck`, and `bin/style`.
 
 ### Steps to Reproduce
 
-Not started yet. This will be completed in Phase II after setting up the local development environment.
+Not started yet. This will be completed next in Phase II Step 3 now that the local development environment is working.
 
 ### Reproduction Evidence
 
+* **Working branch:** https://github.com/zeeshankhan-05/tapioca/tree/fix-issue-1834
 * **Commit showing reproduction:** Not started yet.
 * **Screenshots/logs:** Not started yet.
 * **My findings:** Not started yet.
